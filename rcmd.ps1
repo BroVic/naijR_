@@ -30,11 +30,6 @@ function Get-PkgDescriptor ([string]$Key) {
 function buildSourcePackage {
     Write-Host "Building the package" -ForegroundColor DarkYellow
     $opts = $null
-    
-    if ($PackageName -eq "naijR") {
-        $opts = "--resave-data"
-        Write-Host "Using option(s) '$opts'" -ForegroundColor DarkYellow
-    }
     & "Rcmd.exe" build $opts $PackageName
 }
 
@@ -77,7 +72,7 @@ if ($BuildSite) {
     $currBranch = git branch --show-current
 
     if ($currBranch -ne "master") {
-        Write-Error "Building the website is only recommended on the 'master' branch"
+        Write-Error "Git is not on the recommended 'master' branch for building the site"
         throw "Git is currently on branch '$currBranch'"
     }
     Rscript.exe -e "pkgdown::build_site(pkg = '$PackageName', preview = FALSE, lazy = TRUE)"
