@@ -6,17 +6,20 @@
 
 PARAM ( 
     [string]$PackageName = "naijR",
-    [switch]$BuildPackage,
+    [ValidateSet("Source", "Binary", "Both")]
+    [string]$BuildPackage = "Source",
     [switch]$Check,
     [switch]$Test,
     [switch]$BuildSite
 )
 
 # === Internal functions =====================
+# Default colouring for messaging
+$DefaultColour = "DarkYellow"
 # Retrieves the value for a given field in the package's DESCRIPTION file
 function Get-PkgDescriptor ([string]$Key) {
     $descrfile = "DESCRIPTION"
-    Write-Host "Checking $descrfile key '$Key'" -ForegroundColor DarkYellow
+    Write-Host "Checking $descrfile key '$Key'" -ForegroundColor $DefaultColour
     $descrfile = Join-Path $PackageName -ChildPath $descrfile | `
                     Resolve-Path
     $line = Get-Content $descrfile | `
@@ -28,7 +31,7 @@ function Get-PkgDescriptor ([string]$Key) {
 
 # Builds a source package
 function buildSourcePackage {
-    Write-Host "Building the package" -ForegroundColor DarkYellow
+    Write-Host "Building the package" -ForegroundColor $DefaultColour
     $opts = $null
     & "Rcmd.exe" build $opts $PackageName
 }
@@ -36,14 +39,19 @@ function buildSourcePackage {
 
 # === Main program flow ================================
 $source_version = Get-PkgDescriptor -Key "Version"
-Write-Host "$PackageName : Package version is $source_version" -ForegroundColor DarkYellow
+Write-Host "$PackageName : Package version is $source_version" -ForegroundColor $DefaultColour
 
 if ($Test) {
     Rscript.exe -e "devtools::test('$PackageName')"
 }
 
-if ($BuildPackage) {
+if ($BuildPackage -eq "Source" -or $BuildPackage -eq "Both") {
     buildSourcePackage
+}
+
+if ($BuildPackage -eq "Binary" -or $BuildPackage -eq "Both") {
+    Write-Host "Building binary package" -ForegroundColor $DefaultColour
+    & "Rcmd.exe" INSTALL --build $PackageName
 }
 
 if ($Check) {
@@ -63,12 +71,12 @@ if ($Check) {
         $tarball = $tarball.Replace($built_version, $source_version)
     }
 
-    Write-Host "Checking the package" -ForegroundColor DarkYellow
+    Write-Host "Checking the package" -ForegroundColor $DefaultColour
     & "Rcmd.exe" check --as-cran --no-tests $tarball
 }
 
 if ($BuildSite) {
-    Write-Host "Building the package website" -ForegroundColor DarkYellow
+    Write-Host "Building the package website" -ForegroundColor $DefaultColour
     $currBranch = git branch --show-current
 
     if ($currBranch -ne "master") {
