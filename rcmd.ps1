@@ -12,7 +12,7 @@ PARAM (
 )
 
 # === Internal functions =====================
-# Retrieves the value for a give field in the package's DESCRIPTION file
+# Retrieves the value for a given field in the package's DESCRIPTION file
 function Get-PkgDescriptor ([string]$Key) {
     $descrfile = "DESCRIPTION"
     Write-Host "Checking $descrfile key '$Key'" -ForegroundColor DarkYellow
