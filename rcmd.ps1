@@ -1,34 +1,41 @@
 # Source file: rcmd.ps1
-#
-# Script for batch execution of R, with the naijR package as the default
-
+<#
+.SYNOPSIS
+A script for various automated tasks for R package management
+#>
 [CmdletBinding()]
 
 PARAM ( 
     [string]$PackageName = "naijR",
+
     [ValidateSet("Source", "Binary", "Both")]
     [string]$BuildPackage,
-    [ValidateSet("Basic", "Full")]
-    [string]$ReviewPackage,
+
+    [ValidateSet("Basic", "Full")]$ReviewPackage,
+
     [switch]$Check,
     [switch]$Test,
+    [switch]$Install,
     [switch]$BuildSite
 )
 
 # === Internals =====================
+# R CMD Executable
+$RCMD = "Rcmd.exe"
+
 # Default colouring for messaging
 $DefaultColour = "DarkYellow"
 
-# Retrieves the value for a given field in the package's DESCRIPTION file
+# Script block for retrieving the value for a given key in the package's DESCRIPTION
 $getPkgDescriptor = {
     param([string]$Key)
-    $desc = Join-Path $PackageName -ChildPath "DESCRIPTION" | `
+    $private:desc = Join-Path $PackageName -ChildPath "DESCRIPTION" | `
                     Resolve-Path
     
     if (-not (Test-Path $desc)) {
         throw "'$PackageName' is not an R package"
     }
-    $line = Get-Content $desc | Where-Object { $_.StartsWith($Key)}
+    $private:line = Get-Content $desc | Where-Object { $_.StartsWith($Key)}
     $line.Split(": ")[1]
 }
 
@@ -36,13 +43,13 @@ $getPkgDescriptor = {
 # Script block for building a source package
 $buildSourcePackage = {
     Write-Host "Building source package" -ForegroundColor $DefaultColour
-    $opts = $null
-    & "Rcmd.exe" build $opts $PackageName
+    $private:opts = $null
+    & $RCMD build $opts $PackageName
 }
 
 
 # === Main program flow ================================
-$source_version = & $getPkgDescriptor -Key "Version"
+$source_version = Invoke-Command $getPkgDescriptor -ArgumentList "Version"
 Write-Host "$PackageName : Package version is $source_version" -ForegroundColor $DefaultColour
 
 if ($Test) {
@@ -50,7 +57,7 @@ if ($Test) {
 }
 
 if ($BuildPackage -eq "Source" -or $BuildPackage -eq "Both") {
-    & $buildSourcePackage
+    Invoke-Command $buildSourcePackage
 }
 
 if ($BuildPackage -eq "Binary" -or $BuildPackage -eq "Both") {
@@ -60,10 +67,10 @@ if ($BuildPackage -eq "Binary" -or $BuildPackage -eq "Both") {
     if ($pvt.Platform -ne "Win32NT") {
         throw "Binary build is only supported on Windows"
     }
-    & "Rcmd.exe" INSTALL --build $PackageName
+    & $RCMD INSTALL --build $PackageName
 }
 
-if ($BuildPackage -eq "Both") {
+if ($BuildPackage -eq "Both" -and $source_version -notmatch "^(\d\.){3}9\d{3}$") {
     $archDir = "arch"
     $archPath = Resolve-Path $archDir
 
@@ -72,10 +79,10 @@ if ($BuildPackage -eq "Both") {
     }
     Write-Host "Moving built source and binary archives to '$archPath'"
     $archWildcard = $PackageName + "_" + $source_version + ".*"
-    Move-Item -Path $archWildcard-Destination $archPath -Force
+    Move-Item -Path $archWildcard -Destination $archPath -Force
 }
 
-if ($ReviewPackage -ne $null) {
+if ($null -ne $ReviewPackage) {
     Write-Host "Running automated review of the package" -ForegroundColor $DefaultColour
     $rvpkg = $ReviewPackage.ToLower()
     $gp = "goodpractice"
@@ -95,12 +102,12 @@ if ($ReviewPackage -ne $null) {
                 Out-File -FilePath $gpFilepath -Encoding "ascii"
 }
 
-if ($Check) {
+if ($Check -or $Install) {
     $tarext = ".tar.gz"
     $tarWildcard = "_*.9*" + $tarext
-    $pattern = $PackageName + $tarWildcard
+    $tarballPattern = $PackageName + $tarWildcard
 
-    $latest_build = Get-ChildItem -Filter $pattern | `
+    $latest_build = Get-ChildItem -Filter $tarballPattern | `
         Select-Object -Property Name | `
         Sort-Object -Bottom 1
 
@@ -108,21 +115,33 @@ if ($Check) {
     $built_version = $tarball.Replace($PackageName + "_", "").Replace($tarext, "")
 
     if ($built_version -ne $source_version) {
-        & $buildSourcePackage
+        Invoke-Command $buildSourcePackage
         $tarball = $tarball.Replace($built_version, $source_version)
     }
 
-    Write-Host "Checking the package" -ForegroundColor $DefaultColour
-    & "Rcmd.exe" check --as-cran --no-tests $tarball
+    if ($Check) {
+        Write-Host "Checking the package" -ForegroundColor $DefaultColour
+        & $RCMD check --as-cran --no-tests $tarball
+    }
+        
+    if ($Install) {
+        Write-Host "Installing '$PackageName'" -ForegroundColor $DefaultColour
+        & $RCMD INSTALL $tarball
+        Rscript.exe -e "cat('version', as.character(packageVersion('$PackageName')), 'installed\n')"
+    }
 }
 
 if ($BuildSite) {
     Write-Host "Building the package website" -ForegroundColor $DefaultColour
+    Push-Location $PackageName
     $currBranch = git branch --show-current
+    Pop-Location
+    $recomm = "dev"
 
-    if ($currBranch -ne "master") {
-        Write-Error "Git is not on the recommended 'master' branch for building the site"
+    if ($currBranch -ne $recomm) {
+        Write-Error "Git is not on the recommended '$recomm' branch for building the site"
         throw "Git is currently on branch '$currBranch'"
     }
     Rscript.exe -e "pkgdown::build_site(pkg = '$PackageName', preview = FALSE, lazy = TRUE)"
 }
+
