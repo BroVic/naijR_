@@ -1,3 +1,5 @@
 naijR
 arch
 logs
+*.tar.gz
+*.zip
