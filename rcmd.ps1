@@ -136,10 +136,10 @@ if ($BuildSite) {
     Push-Location $PackageName
     $currBranch = git branch --show-current
     Pop-Location
-    $recomm = "dev"
+    $recommBranch = "dev"
 
-    if ($currBranch -ne $recomm) {
-        Write-Error "Git is not on the recommended '$recomm' branch for building the site"
+    if ($currBranch -ne $recommBranch) {
+        Write-Error "Git is not on the recommended '$recommBranch' branch for building the site"
         throw "Git is currently on branch '$currBranch'"
     }
     Rscript.exe -e "pkgdown::build_site(pkg = '$PackageName', preview = FALSE, lazy = TRUE)"
