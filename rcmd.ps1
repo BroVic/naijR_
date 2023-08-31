@@ -35,6 +35,7 @@ $getPkgDescriptor = {
     if (-not (Test-Path $desc)) {
         throw "'$PackageName' is not an R package"
     }
+    # TODO: Address case of multiline values
     $private:line = Get-Content $desc | Where-Object { $_.StartsWith($Key)}
     $line.Split(": ")[1]
 }
