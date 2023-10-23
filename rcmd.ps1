@@ -16,7 +16,8 @@ PARAM (
     [switch]$Check,
     [switch]$Test,
     [switch]$Install,
-    [switch]$BuildSite
+    [switch]$BuildSite,
+    [switch]$ForceBuild
 )
 
 # === Internals =====================
@@ -35,6 +36,7 @@ $getPkgDescriptor = {
     if (-not (Test-Path $desc)) {
         throw "'$PackageName' is not an R package"
     }
+    # TODO: Address case of multiline values
     $private:line = Get-Content $desc | Where-Object { $_.StartsWith($Key)}
     $line.Split(": ")[1]
 }
@@ -104,7 +106,7 @@ if ($null -ne $ReviewPackage) {
 
 if ($Check -or $Install) {
     $tarext = ".tar.gz"
-    $tarWildcard = "_*.9*" + $tarext
+    $tarWildcard = "_*" + $tarext
     $tarballPattern = $PackageName + $tarWildcard
 
     $latest_build = Get-ChildItem -Filter $tarballPattern | `
@@ -114,9 +116,11 @@ if ($Check -or $Install) {
     $tarball = $latest_build.Name
     $built_version = $tarball.Replace($PackageName + "_", "").Replace($tarext, "")
 
-    if ($built_version -ne $source_version) {
+    if ($built_version -ne $source_version -or $ForceBuild) {
         Invoke-Command $buildSourcePackage
         $tarball = $tarball.Replace($built_version, $source_version)
+    } else {
+        Write-Warning -Message "The package was not rebuilt. To do so use -ForceBuild"
     }
 
     if ($Check) {
@@ -136,10 +140,10 @@ if ($BuildSite) {
     Push-Location $PackageName
     $currBranch = git branch --show-current
     Pop-Location
-    $recomm = "dev"
+    $recommBranch = "dev"
 
-    if ($currBranch -ne $recomm) {
-        Write-Error "Git is not on the recommended '$recomm' branch for building the site"
+    if ($currBranch -ne $recommBranch) {
+        Write-Error "Git is not on the recommended '$recommBranch' branch for building the site"
         throw "Git is currently on branch '$currBranch'"
     }
     Rscript.exe -e "pkgdown::build_site(pkg = '$PackageName', preview = FALSE, lazy = TRUE)"
