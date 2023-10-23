@@ -16,7 +16,8 @@ PARAM (
     [switch]$Check,
     [switch]$Test,
     [switch]$Install,
-    [switch]$BuildSite
+    [switch]$BuildSite,
+    [switch]$ForceBuild
 )
 
 # === Internals =====================
@@ -105,7 +106,7 @@ if ($null -ne $ReviewPackage) {
 
 if ($Check -or $Install) {
     $tarext = ".tar.gz"
-    $tarWildcard = "_*.9*" + $tarext
+    $tarWildcard = "_*" + $tarext
     $tarballPattern = $PackageName + $tarWildcard
 
     $latest_build = Get-ChildItem -Filter $tarballPattern | `
@@ -115,9 +116,11 @@ if ($Check -or $Install) {
     $tarball = $latest_build.Name
     $built_version = $tarball.Replace($PackageName + "_", "").Replace($tarext, "")
 
-    if ($built_version -ne $source_version) {
+    if ($built_version -ne $source_version -or $ForceBuild) {
         Invoke-Command $buildSourcePackage
         $tarball = $tarball.Replace($built_version, $source_version)
+    } else {
+        Write-Warning -Message "The package was not rebuilt. To do so use -ForceBuild"
     }
 
     if ($Check) {
