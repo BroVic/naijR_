@@ -4,3 +4,4 @@ logs
 *.tar.gz
 *.zip
 naijR.Rcheck/
+cpp
