@@ -4,3 +4,5 @@ logs
 *.tar.gz
 *.zip
 naijR.Rcheck/
+naijcpp
+BroVic.github.io
